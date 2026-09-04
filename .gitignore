@@ -19,3 +19,4 @@
 /src/
 /include/
 /README.md.bak
+/app/src/main/assets/*.json

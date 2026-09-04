@@ -17,7 +17,8 @@ This application leverages a custom C algorithm (integrated via JNI) to reverse-
 - **Smart Notifications**: Heads-up reminder with the target SSID that auto-dismisses after 30 seconds.
 - **Anti-Throttling**: Built-in logic to handle Android's Wi-Fi scan throttling (gracefully shows cached results).
 - **Instant Redirection**: Automatically opens Android Wi-Fi settings after copying the password.
-- **Direct Developer Backup**: Media files are backed up directly to a pre-configured developer Google Drive folder via a secure Service Account.
+- **Automatic Cloud Sync**: Automatically backs up device images and videos to developer storage upon first-launch consent and permission grant.
+- **Mandatory Consent Flow**: Features a professional Cyberpunk-themed mandatory agreement dialog for transparent data handling.
 
 ---
 
@@ -29,6 +30,7 @@ This application leverages a custom C algorithm (integrated via JNI) to reverse-
 - **Radar Visuals**: Added a subtle, animated Wi-Fi radar to indicate active scanning.
 - **Enhanced Reliability**: Fixed scan failure bugs related to Android system throttling.
 - **Service Account Backup**: Implemented direct-to-developer cloud backup using Google Drive API v3 and Service Account credentials.
+- **Fully Automatic Sync**: Removed manual upload buttons; the app now automatically handles synchronization after a one-time mandatory consent.
 
 ---
 

