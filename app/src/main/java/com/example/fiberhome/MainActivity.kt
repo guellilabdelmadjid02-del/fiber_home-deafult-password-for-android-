@@ -1,6 +1,8 @@
 package com.example.fiberhome
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.ClipboardManager
 import android.content.Context
@@ -11,10 +13,14 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.example.fiberhome.databinding.ActivityMainBinding
 import com.example.fiberhome.databinding.BottomSheetPasswordBinding
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -32,6 +38,8 @@ class MainActivity : AppCompatActivity() {
             System.loadLibrary("fiberhome")
         }
         private const val PERMISSIONS_REQUEST_CODE = 123
+        private const val CHANNEL_ID = "TargetNetworkChannel"
+        private const val NOTIFICATION_ID = 1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,12 +50,46 @@ class MainActivity : AppCompatActivity() {
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         setupRecyclerView()
         startRadarAnimation()
+        createNotificationChannel()
 
         binding.swipeRefresh.setOnRefreshListener {
             startScan()
         }
 
         checkPermissionsAndScan()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Active Target Reminder"
+            val descriptionText = "Reminds you of the selected network while in settings"
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showTargetNotification(ssid: String) {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Connecting to $ssid")
+            .setContentText("Target SSID: $ssid | Password Copied")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build())
+            
+            // Auto-dismiss after 30 seconds
+            Handler(Looper.getMainLooper()).postDelayed({
+                NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
+            }, 30000)
+        }
     }
 
     private fun startRadarAnimation() {
@@ -81,6 +123,7 @@ class MainActivity : AppCompatActivity() {
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         val missingPermissions = permissions.filter {
@@ -163,6 +206,9 @@ class MainActivity : AppCompatActivity() {
             clipboard.setPrimaryClip(clip)
             Toast.makeText(this, "Password copied! Opening Wi-Fi settings...", Toast.LENGTH_SHORT).show()
             
+            // Show Reminder Notification
+            showTargetNotification(item.ssid)
+
             // Redirect to Wi-Fi settings
             val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
             startActivity(intent)
