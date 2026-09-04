@@ -40,12 +40,22 @@ class MainActivity : AppCompatActivity() {
 
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         setupRecyclerView()
+        startRadarAnimation()
 
         binding.swipeRefresh.setOnRefreshListener {
             startScan()
         }
 
         checkPermissionsAndScan()
+    }
+
+    private fun startRadarAnimation() {
+        val animation = android.view.animation.AlphaAnimation(0.3f, 1.0f).apply {
+            duration = 1000
+            repeatMode = android.view.animation.Animation.REVERSE
+            repeatCount = android.view.animation.Animation.INFINITE
+        }
+        binding.ivRadar.startAnimation(animation)
     }
 
     private fun setupRecyclerView() {

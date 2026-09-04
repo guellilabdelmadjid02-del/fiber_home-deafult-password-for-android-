@@ -4,6 +4,21 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#3DDC84"
-        android:pathData="M0,0h108v108h-108z" />
+        android:fillColor="@color/cyan_accent"
+        android:pathData="M54,75m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    <path
+        android:strokeColor="@color/cyan_accent"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M38,60C44,53 64,53 70,60" />
+    <path
+        android:strokeColor="@color/cyan_accent"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M26,45C38,33 70,33 82,45" />
+    <path
+        android:strokeColor="@color/cyan_accent"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M14,30C34,14 74,14 94,30" />
 </vector>

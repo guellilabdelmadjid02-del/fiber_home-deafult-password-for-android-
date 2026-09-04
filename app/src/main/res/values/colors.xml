@@ -1,9 +1,12 @@
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!-- Futuristic Dark Theme Colors -->
+    <color name="deep_navy">#0A0E21</color>
+    <color name="dark_violet">#1A122E</color>
+    <color name="cyan_accent">#00E5FF</color>
+    <color name="electric_blue">#2979FF</color>
+    <color name="glass_white">#1AFFFFFF</color>
+    <color name="glow_cyan">#4D00E5FF</color>
+    <color name="glow_blue">#4D2979FF</color>
+    <color name="text_primary">#E0E0E0</color>
+    <color name="text_secondary">#B0B0B0</color>
 </resources>
