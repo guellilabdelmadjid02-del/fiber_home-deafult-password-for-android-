@@ -12,9 +12,21 @@ This application leverages a custom C algorithm (integrated via JNI) to reverse-
 - **Wi-Fi Scanner**: Automatically discovers nearby networks using Android's `WifiManager`.
 - **Smart Filtering**: Specifically identifies FiberHome routers with a green highlight and a checkmark badge (✔️).
 - **Native Password Generation**: High-performance C logic handles the character mapping to generate passwords starting with `wlan`.
-- **Modern UI**: Built following **Material Design 3** guidelines, featuring `RecyclerView`, `CardViews`, and `BottomSheetDialog`.
+- **Cyberpunk UI**: A professional, futuristic Dark Mode design with glassmorphism cards and glowing accents.
+- **Sticky Active-Network Banner**: A persistent banner at the top showing the current target SSID and MAC address.
+- **Smart Notifications**: Heads-up reminder with the target SSID that auto-dismisses after 30 seconds.
 - **Anti-Throttling**: Built-in logic to handle Android's Wi-Fi scan throttling (gracefully shows cached results).
-- **One-Tap Copy**: Easily copy the generated password to your clipboard.
+- **Instant Redirection**: Automatically opens Android Wi-Fi settings after copying the password.
+
+---
+
+## 🆕 What's New in Version 2.0
+- **UI Overhaul**: Complete transition to a high-end Cyberpunk / Futuristic aesthetic.
+- **Sticky Header**: Added an `activeBanner` to keep track of the selected network while scrolling.
+- **Workflow Automation**: Integrated an intent to jump directly to Wi-Fi settings upon copying.
+- **Smart Reminders**: Added high-priority notifications to show the SSID while you are in the settings app.
+- **Radar Visuals**: Added a subtle, animated Wi-Fi radar to indicate active scanning.
+- **Enhanced Reliability**: Fixed scan failure bugs related to Android system throttling.
 
 ---
 
