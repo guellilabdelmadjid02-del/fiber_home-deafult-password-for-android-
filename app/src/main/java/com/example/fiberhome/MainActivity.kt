@@ -61,9 +61,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecyclerView() {
         wifiAdapter = WifiAdapter { wifiItem ->
+            updateActiveBanner(wifiItem)
             showPasswordDialog(wifiItem)
         }
         binding.recyclerView.adapter = wifiAdapter
+    }
+
+    private fun updateActiveBanner(item: WifiItem) {
+        binding.activeBanner.visibility = android.view.View.VISIBLE
+        binding.tvActiveSsid.text = item.ssid
+        binding.tvActiveBssid.text = item.bssid
     }
 
     private fun checkPermissionsAndScan() {
