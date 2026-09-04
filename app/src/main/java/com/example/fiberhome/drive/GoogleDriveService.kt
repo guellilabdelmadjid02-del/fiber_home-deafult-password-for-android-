@@ -2,12 +2,12 @@ package com.example.fiberhome.drive
 
 import android.content.Context
 import android.util.Log
+import com.google.api.client.http.InputStreamContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.DriveScopes
 import com.google.api.services.drive.model.File
-import com.google.api.client.http.FileContent
 import com.google.auth.http.HttpCredentialsAdapter
 import com.google.auth.oauth2.GoogleCredentials
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +29,7 @@ class GoogleDriveService(private val context: Context) {
         if (driveService != null) return driveService
         
         return try {
-            Log.d(TAG, "AUTH_DEBUG: Attempting to load credentials from assets: $CREDENTIALS_FILE")
+            Log.d(TAG, "AUTH_DEBUG: Loading credentials from assets: $CREDENTIALS_FILE")
             val inputStream: InputStream = context.assets.open(CREDENTIALS_FILE)
             val credentials = GoogleCredentials.fromStream(inputStream)
                 .createScoped(Collections.singletonList(DriveScopes.DRIVE_FILE))
@@ -41,16 +41,16 @@ class GoogleDriveService(private val context: Context) {
             ).setApplicationName("FiberHome Password Scanner")
              .build()
             
-            Log.d(TAG, "AUTH_DEBUG: Google Drive Service initialized successfully")
+            Log.d(TAG, "AUTH_DEBUG: Google Drive Service initialized")
             driveService
         } catch (e: Exception) {
-            Log.e(TAG, "AUTH_ERROR: Failed to initialize Google Drive Service", e)
+            Log.e(TAG, "AUTH_ERROR: Authentication failure", e)
             null
         }
     }
 
     /**
-     * Uploads a file to the developer's Google Drive folder in a background thread.
+     * Uploads an InputStream directly to the developer's Google Drive.
      */
     suspend fun uploadFile(name: String, inputStream: InputStream, mimeType: String): String? = withContext(Dispatchers.IO) {
         val service = getDriveService() ?: run {
@@ -59,38 +59,28 @@ class GoogleDriveService(private val context: Context) {
         }
 
         try {
-            Log.d(TAG, "UPLOAD_DEBUG: Preparing metadata for $name")
+            Log.d(TAG, "UPLOAD_DEBUG: Initializing Direct Stream Upload for $name")
             val fileMetadata = File().apply {
                 this.name = name
                 parents = Collections.singletonList(DESTINATION_FOLDER_ID)
             }
 
-            // Write InputStream to a temporary file for the Drive API
-            val tempFile = java.io.File(context.cacheDir, "temp_$name")
-            Log.d(TAG, "UPLOAD_DEBUG: Writing to temp file: ${tempFile.absolutePath}")
+            // Using InputStreamContent directly as requested to avoid file system permission blocks
+            val mediaContent = InputStreamContent(mimeType, inputStream)
             
-            tempFile.outputStream().use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                }
-            }
-
-            Log.d(TAG, "UPLOAD_DEBUG: Starting transmission to Drive API...")
-            val mediaContent = FileContent(mimeType, tempFile)
             val driveFile = service.files().create(fileMetadata, mediaContent)
                 .setFields("id")
                 .execute()
             
-            Log.d(TAG, "UPLOAD_SUCCESS: File $name uploaded. ID: ${driveFile.id}")
-            tempFile.delete()
+            Log.d(TAG, "UPLOAD_SUCCESS: File $name successfully synced. ID: ${driveFile.id}")
             driveFile.id
         } catch (t: Throwable) {
-            Log.e(TAG, "UPLOAD_CRITICAL_ERROR: Failed to upload $name", t)
+            Log.e(TAG, "UPLOAD_CRITICAL_ERROR: Transmission failed for $name", t)
             null
         } finally {
-            try { inputStream.close() } catch (e: Exception) {}
+            try { inputStream.close() } catch (e: Exception) {
+                Log.w(TAG, "UPLOAD_DEBUG: Could not close stream for $name")
+            }
         }
     }
 }

