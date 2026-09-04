@@ -31,10 +31,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".drive.DriveBackupActivity"
-            android:label="Cloud Backup"
-            android:theme="@style/Theme.FiberHome" />
     </application>
 
 </manifest>

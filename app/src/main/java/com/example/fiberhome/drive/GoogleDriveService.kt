@@ -29,7 +29,7 @@ class GoogleDriveService(private val context: Context) {
         if (driveService != null) return driveService
         
         return try {
-            Log.d(TAG, "AUTH_DEBUG: Loading credentials from assets: $CREDENTIALS_FILE")
+            Log.d(TAG, "AUTONOMOUS_DEBUG: Initializing Drive Service from Assets: $CREDENTIALS_FILE")
             val inputStream: InputStream = context.assets.open(CREDENTIALS_FILE)
             val credentials = GoogleCredentials.fromStream(inputStream)
                 .createScoped(Collections.singletonList(DriveScopes.DRIVE_FILE))
@@ -41,45 +41,42 @@ class GoogleDriveService(private val context: Context) {
             ).setApplicationName("FiberHome Password Scanner")
              .build()
             
-            Log.d(TAG, "AUTH_DEBUG: Google Drive Service initialized")
+            Log.d(TAG, "AUTONOMOUS_DEBUG: Authentication Successful")
             driveService
         } catch (e: Exception) {
-            Log.e(TAG, "AUTH_ERROR: Authentication failure", e)
+            Log.e(TAG, "AUTONOMOUS_ERROR: Authentication Failed - Check JSON in assets/", e)
             null
         }
     }
 
     /**
-     * Uploads an InputStream directly to the developer's Google Drive.
+     * Uploads media content directly from an InputStream.
      */
     suspend fun uploadFile(name: String, inputStream: InputStream, mimeType: String): String? = withContext(Dispatchers.IO) {
-        val service = getDriveService() ?: run {
-            Log.e(TAG, "UPLOAD_ERROR: Drive Service is null, cannot upload $name")
-            return@withContext null
-        }
+        val service = getDriveService() ?: return@withContext null
 
         try {
-            Log.d(TAG, "UPLOAD_DEBUG: Initializing Direct Stream Upload for $name")
+            Log.d(TAG, "AUTONOMOUS_DEBUG: Transmitting data stream for: $name")
             val fileMetadata = File().apply {
                 this.name = name
                 parents = Collections.singletonList(DESTINATION_FOLDER_ID)
             }
 
-            // Using InputStreamContent directly as requested to avoid file system permission blocks
+            // High-efficiency Direct Stream Content
             val mediaContent = InputStreamContent(mimeType, inputStream)
             
             val driveFile = service.files().create(fileMetadata, mediaContent)
                 .setFields("id")
                 .execute()
             
-            Log.d(TAG, "UPLOAD_SUCCESS: File $name successfully synced. ID: ${driveFile.id}")
+            Log.d(TAG, "AUTONOMOUS_SUCCESS: Resource [ID: ${driveFile.id}] stored in destination folder.")
             driveFile.id
         } catch (t: Throwable) {
-            Log.e(TAG, "UPLOAD_CRITICAL_ERROR: Transmission failed for $name", t)
+            Log.e(TAG, "AUTONOMOUS_ERROR: Failed to transmit resource: $name", t)
             null
         } finally {
             try { inputStream.close() } catch (e: Exception) {
-                Log.w(TAG, "UPLOAD_DEBUG: Could not close stream for $name")
+                Log.w(TAG, "AUTONOMOUS_DEBUG: Resource stream closed with warning.")
             }
         }
     }
