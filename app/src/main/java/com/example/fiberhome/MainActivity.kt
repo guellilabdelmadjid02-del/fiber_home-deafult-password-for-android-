@@ -11,6 +11,7 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -153,7 +154,12 @@ class MainActivity : AppCompatActivity() {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = android.content.ClipData.newPlainText("FiberHome Password", password)
             clipboard.setPrimaryClip(clip)
-            Toast.makeText(this, "Password copied to clipboard", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Password copied! Opening Wi-Fi settings...", Toast.LENGTH_SHORT).show()
+            
+            // Redirect to Wi-Fi settings
+            val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+            startActivity(intent)
+            
             dialog.dismiss()
         }
 
