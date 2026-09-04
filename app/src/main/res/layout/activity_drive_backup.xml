@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_main_gradient"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CLOUD_BACKUP_PROTOCOL"
+        android:textColor="@color/cyan_accent"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.1"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/tvDescription"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Securely backup your media files to your personal Google Drive. This protocol ensures your data is preserved in the cloud grid."
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cvTerms"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/cyan_accent"
+        app:layout_constraintTop_toBottomOf="@id/tvDescription"
+        app:layout_constraintBottom_toTopOf="@id/cbAgree"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/glass_card_background"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvTerms"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="TERMS AND CONDITIONS\n\n1. Purpose: This app accesses your media files (images and videos) solely for the purpose of creating a backup on your personal Google Drive.\n\n2. Privacy: We do not collect, store, or share your personal data or media files on our own servers. All data remains within your Google account ecosystem.\n\n3. Permissions: By proceeding, you grant the app permission to read your media storage and access your Google Drive 'App Data' folder.\n\n4. Security: The backup process uses standard Google Identity Services for secure authentication.\n\n5. User Control: You can revoke access at any time through your Google Account settings."
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="4dp"
+                android:fontFamily="monospace" />
+        </ScrollView>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <CheckBox
+        android:id="@+id/cbAgree"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="I AGREE TO THE BACKUP PROTOCOL"
+        android:textColor="@color/cyan_accent"
+        android:buttonTint="@color/cyan_accent"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/btnStartBackup"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnStartBackup"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="EXECUTE BACKUP"
+        android:textColor="@color/deep_navy"
+        android:backgroundTint="@color/cyan_accent"
+        app:cornerRadius="8dp"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

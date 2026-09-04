@@ -25,6 +25,10 @@ import com.example.fiberhome.databinding.ActivityMainBinding
 import com.example.fiberhome.databinding.BottomSheetPasswordBinding
 import com.google.android.material.bottomsheet.BottomSheetDialog
 
+import android.view.Menu
+import android.view.MenuItem
+import com.example.fiberhome.drive.DriveBackupActivity
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -46,6 +50,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        
+        setSupportActionBar(binding.toolbar)
 
         wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         setupRecyclerView()
@@ -57,6 +63,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         checkPermissionsAndScan()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_backup) {
+            startActivity(Intent(this, DriveBackupActivity::class.java))
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun createNotificationChannel() {
